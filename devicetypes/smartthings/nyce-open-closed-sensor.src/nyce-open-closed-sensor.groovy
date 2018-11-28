@@ -18,7 +18,7 @@ import physicalgraph.zigbee.clusters.iaszone.ZoneStatus
 
 
 metadata {
-	definition (name: "NYCE Open/Closed Sensor", namespace: "smartthings", author: "NYCE") {
+	definition (name: "NYCE Open/Closed Sensor", namespace: "smartthings", author: "NYCE", mnmn: "SmartThings", vid: "generic-contact-3") {
 		capability "Battery"
 		capability "Configuration"
 		capability "Contact Sensor"
@@ -119,6 +119,15 @@ private Map parseCatchAllMessage(String description) {
 		log.debug "parseCatchAllMessage: msgStatus: ${msgStatus}"
 		if (msgStatus == 0) {
 			switch(cluster.clusterId) {
+				case 0x0500:
+                	Map descMap = zigbee.parseDescriptionAsMap(description)
+					// someone who understands Zigbee better than me should refactor this whole DTH to bring it up to date
+					if (descMap?.attrInt == 0x0002) {
+						resultMap.name = "contact"
+						def zs = new ZoneStatus(zigbee.convertToInt(descMap.value, 16))
+						resultMap.value = zs.isAlarm1Set() ? "open" : "closed"
+					}
+					break
 				case 0x0001:
 					log.debug 'Battery'
 					resultMap.name = 'battery'
@@ -187,7 +196,7 @@ private int getBatteryPercentage(int value) {
 	{
 		pct = 0.06
 	}
-	return (int) pct * 100
+	return (int)(pct * 100)
 }
 
 private boolean shouldProcessMessage(cluster) {
@@ -212,9 +221,11 @@ private Map parseReportAttributeMessage(String description) {
 
 	switch(descMap.cluster) {
 		case "0001":
-			log.debug 'Battery'
-			resultMap.name = 'battery'
-			resultMap.value = getBatteryPercentage(convertHexToInt(descMap.value))
+			if(descMap.attrId == "0020") {
+				log.debug 'Battery'
+				resultMap.name = 'battery'
+				resultMap.value = getBatteryPercentage(convertHexToInt(descMap.value))
+			}
 			break
 		default:
 			log.info descMap.cluster
